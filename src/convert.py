@@ -1,12 +1,28 @@
-import supervisely as sly
-import os
-from dataset_tools.convert import unpack_if_archive
-import src.settings as s
-from urllib.parse import unquote, urlparse
-from supervisely.io.fs import get_file_name, get_file_size
-import shutil
+# https://www.kaggle.com/datasets/bendang/synthetic-wheat-images
 
+import ast
+import csv
+import os
+import shutil
+from collections import defaultdict
+from urllib.parse import unquote, urlparse
+
+import numpy as np
+import supervisely as sly
+from dataset_tools.convert import unpack_if_archive
+from dotenv import load_dotenv
+from supervisely.io.fs import (
+    dir_exists,
+    file_exists,
+    get_file_ext,
+    get_file_name,
+    get_file_name_with_ext,
+    get_file_size,
+)
 from tqdm import tqdm
+
+import src.settings as s
+
 
 def download_dataset(teamfiles_dir: str) -> str:
     """Use it for large datasets to convert them on the instance"""
@@ -29,7 +45,7 @@ def download_dataset(teamfiles_dir: str) -> str:
             total=fsize,
             unit="B",
             unit_scale=True,
-        ) as pbar:        
+        ) as pbar:
             api.file.download(team_id, teamfiles_path, local_path, progress_cb=pbar)
         dataset_path = unpack_if_archive(local_path)
 
@@ -57,7 +73,8 @@ def download_dataset(teamfiles_dir: str) -> str:
 
         dataset_path = storage_dir
     return dataset_path
-    
+
+
 def count_files(path, extension):
     count = 0
     for root, dirs, files in os.walk(path):
@@ -65,21 +82,104 @@ def count_files(path, extension):
             if file.endswith(extension):
                 count += 1
     return count
-    
+
+
 def convert_and_upload_supervisely_project(
     api: sly.Api, workspace_id: int, project_name: str
 ) -> sly.ProjectInfo:
-    ### Function should read local dataset and upload it to Supervisely project, then return project info.###
-    raise NotImplementedError("The converter should be implemented manually.")
+    # project_name = "synthetic wheat"
+    images_path = "/home/grokhi/rawdata/synthetic-gwhd/images"
+    corrected_path = "/home/grokhi/rawdata/synthetic-gwhd/corrected_train.csv"
+    pix2pix_1_path = "/home/grokhi/rawdata/synthetic-gwhd/pix2pix_1_synthetic.csv"
+    pix2pix_2_path = "/home/grokhi/rawdata/synthetic-gwhd/pix2pix_2_synthetic.csv"
+    style_path = "/home/grokhi/rawdata/synthetic-gwhd/style_transfer_images.csv"
 
-    # dataset_path = "/local/path/to/your/dataset" # general way
-    # dataset_path = download_dataset(teamfiles_dir) # for large datasets stored on instance
+    batch_size = 30
+    ds_name = "ds"
 
-    # ... some code here ...
+    def create_ann(image_path):
+        labels = []
+        tags = []
 
-    # sly.logger.info('Deleting temporary app storage files...')
-    # shutil.rmtree(storage_dir)
+        # image_np = sly.imaging.image.read(image_path)[:, :, 0]
+        img_height = 1024  # image_np.shape[0]
+        img_wight = 1024  # image_np.shape[1]
 
-    # return project
+        # file_value = im_name_to_file.get(get_file_name(image_path))
+        # if file_value is not None:
+        #     file_tag = sly.Tag(file_meta, value=file_value)
+        #     tags.append(file_tag)
 
+        source_value = im_name_to_source.get(get_file_name(image_path))
+        if source_value is not None:
+            source = sly.Tag(source_meta, value=source_value)
+            tags.append(source)
 
+        bboxes_data = im_name_to_data.get(get_file_name(image_path))
+
+        if bboxes_data is not None:
+            for curr_data in bboxes_data:
+                left = curr_data[0]
+                right = curr_data[0] + curr_data[2]
+                top = curr_data[1]
+                bottom = curr_data[1] + curr_data[3]
+                if left > right or top > bottom:
+                    continue
+                rectangle = sly.Rectangle(top=top, left=left, bottom=bottom, right=right)
+                label = sly.Label(rectangle, obj_class)
+                labels.append(label)
+
+        return sly.Annotation(img_size=(img_height, img_wight), labels=labels, img_tags=tags)
+
+    obj_class = sly.ObjClass("wheat", sly.Rectangle)
+    source_meta = sly.TagMeta("source", sly.TagValueType.ANY_STRING)
+    # file_meta = sly.TagMeta("ann file name", sly.TagValueType.ANY_STRING)
+
+    project = api.project.create(workspace_id, project_name, change_name_if_conflict=True)
+    meta = sly.ProjectMeta(obj_classes=[obj_class], tag_metas=[source_meta])
+    api.project.update_meta(project.id, meta.to_json())
+
+    im_name_to_data = defaultdict(list)
+    im_name_to_file = {}
+    im_name_to_source = {}
+    for ann_path in [corrected_path, pix2pix_1_path, pix2pix_2_path, style_path]:
+        with open(ann_path, "r") as file:
+            csvreader = csv.reader(file)
+            for idx, row in enumerate(csvreader):
+                if idx == 0:
+                    continue
+                im_name_to_data[row[0]].append(ast.literal_eval(row[3]))
+                if row[0] not in im_name_to_file.keys():
+                    im_name_to_file[row[0]] = get_file_name(ann_path)
+                if row[0] not in im_name_to_source.keys():
+                    im_name_to_source[row[0]] = row[4]
+
+    regrouped_dict = {}
+    for key, value in im_name_to_file.items():
+        if value not in regrouped_dict:
+            regrouped_dict[value] = [key]
+        else:
+            regrouped_dict[value].append(key)
+
+    for ds_name, images_names in regrouped_dict.items():
+        images_names = [
+            f"{name}.jpg" for name in images_names if os.path.exists(f"{images_path}/{name}.jpg")
+        ]
+
+        dataset = api.dataset.create(project.id, ds_name, change_name_if_conflict=True)
+
+        progress = sly.Progress("Create dataset {}".format(ds_name), len(images_names))
+
+        for images_names_batch in sly.batched(images_names, batch_size=batch_size):
+            img_pathes_batch = [
+                os.path.join(images_path, image_name) for image_name in images_names_batch
+            ]
+
+            img_infos = api.image.upload_paths(dataset.id, images_names_batch, img_pathes_batch)
+            img_ids = [im_info.id for im_info in img_infos]
+
+            anns = [create_ann(image_path) for image_path in img_pathes_batch]
+            api.annotation.upload_anns(img_ids, anns)
+
+            progress.iters_done_report(len(images_names_batch))
+    return project
