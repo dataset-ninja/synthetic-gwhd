@@ -4,10 +4,10 @@ The **Synthetic GWHD** dataset was made as part of participation for the [Global
 
 <span style="font-size: smaller; font-style: italic;">Style Transfer Images: This was created using 25 different styles.</span>
 
-<img src="https://github.com/dataset-ninja/synthetic-gwhd/assets/78355358/f7aa7360-f29f-47e8-b252-4e1899650985" alt="image" width="400">
+<img src="https://github.com/dataset-ninja/synthetic-gwhd/assets/78355358/f7aa7360-f29f-47e8-b252-4e1899650985" alt="image" width="600">
 
 <span style="font-size: smaller; font-style: italic;">Pix2Pix: Single Generation.</span>
 
-<img src="https://github.com/dataset-ninja/synthetic-gwhd/assets/78355358/40131c45-495b-43f6-b714-43f9ac53c375" alt="image" width="400">
+<img src="https://github.com/dataset-ninja/synthetic-gwhd/assets/78355358/40131c45-495b-43f6-b714-43f9ac53c375" alt="image" width="600">
 
 <span style="font-size: smaller; font-style: italic;">Pix2Pix: Mosiac Generation.</span>

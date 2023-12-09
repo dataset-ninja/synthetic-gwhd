@@ -1,6 +1,6 @@
 Dataset **Synthetic GWHD** can be downloaded in [Supervisely format](https://developer.supervisely.com/api-references/supervisely-annotation-json-format):
 
- [Download](Set 'HIDE_DATASET=False' to generate download link)
+ [Download](https://assets.supervisely.com/supervisely-supervisely-assets-public/teams_storage/s/6/68/ERfUxfoZXtF7vGRtE9NNTmyWQ7Np4EkC8PhTe7AQ1IiHCIIbqVNHBqwVT7KyyKdc3Teb1YX5lefUb8DANayUJzRBdZ76kVzCbvbizDUMihYghi0kXrvMcYAFbs5E.tar)
 
 As an alternative, it can be downloaded with *dataset-tools* package:
 ``` bash
