@@ -70,7 +70,7 @@ ORGANIZATION_URL: Optional[Union[str, List[str]]] = None
 SLYTAGSPLIT: Optional[Dict[str, Union[List[str], str]]] = {
     "__PRETEXT__": "Additionally, every image has ***source*** tag"
 }
-TAGS: Optional[List[str]] = None
+TAGS: Optional[List[str]] = ['synthetic']
 
 
 SECTION_EXPLORE_CUSTOM_DATASETS: Optional[List[str]] = None
